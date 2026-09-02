@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Header() {
   return (
@@ -12,7 +13,10 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* User Profile Avatar / Logout */}
+        {/* Light / Dark Mode Toggle */}
+        <ThemeToggle />
+
+        {/* User Profile Avatar */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium text-sm">
             U

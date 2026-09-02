@@ -16,7 +16,7 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-900">
+    <div className="flex min-h-screen">
       {/* Sidebar Component */}
       <Sidebar />
 
