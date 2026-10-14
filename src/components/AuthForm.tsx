@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type AuthMode = "signin" | "signup";
 
@@ -13,43 +15,75 @@ interface FormValues {
 }
 
 export default function AuthForm() {
+  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [isLoading, setIsLoading] = useState(false);
+
+  const { login, isLoading, error, isAuthenticated, clearError } =
+    useAuthStore();
 
   const {
     register,
     handleSubmit,
+    setValue,
     watch,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({ mode: "onTouched" });
+  } = useForm<FormValues>({
+    mode: "onTouched",
+    defaultValues: {
+      email: "",
+      password: "",
+      name: "",
+      confirmPassword: "",
+    },
+  });
 
-  const onSubmit = async (_data: FormValues) => {
-    setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setIsLoading(false);
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, router]);
+
+  const onSubmit = async (data: FormValues) => {
+    clearError();
+    if (mode === "signin") {
+      const success = await login(data.email, data.password);
+      if (success) {
+        router.push("/dashboard");
+      }
+    } else {
+      // Mock signup flow or notify user
+      alert("Registration endpoint is not requested. Please sign in with test credentials.");
+    }
   };
 
   const switchMode = (next: AuthMode) => {
     if (next === mode) return;
+    clearError();
     setMode(next);
     reset();
+  };
+
+  const handleFillDemo = () => {
+    setValue("email", "skm@gmail.cm", { shouldValidate: true });
+    setValue("password", "12345", { shouldValidate: true });
   };
 
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-200/60 dark:shadow-zinc-950/80">
-
         {/* ── Toggle tabs ── */}
         <div className="flex rounded-t-2xl overflow-hidden border-b border-zinc-200 dark:border-zinc-800">
           <button
             id="auth-tab-signin"
             type="button"
             onClick={() => switchMode("signin")}
-            className={`flex-1 py-4 text-sm font-semibold tracking-wide transition-colors duration-200 focus:outline-none cursor-pointer ${mode === "signin"
+            className={`flex-1 py-4 text-sm font-semibold tracking-wide transition-colors duration-200 focus:outline-none cursor-pointer ${
+              mode === "signin"
                 ? "bg-blue-600 text-white"
                 : "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-              }`}
+            }`}
           >
             Sign In
           </button>
@@ -57,10 +91,11 @@ export default function AuthForm() {
             id="auth-tab-signup"
             type="button"
             onClick={() => switchMode("signup")}
-            className={`flex-1 py-4 text-sm font-semibold tracking-wide transition-colors duration-200 focus:outline-none cursor-pointer ${mode === "signup"
+            className={`flex-1 py-4 text-sm font-semibold tracking-wide transition-colors duration-200 focus:outline-none cursor-pointer ${
+              mode === "signup"
                 ? "bg-blue-600 text-white"
                 : "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-              }`}
+            }`}
           >
             Sign Up
           </button>
@@ -74,10 +109,42 @@ export default function AuthForm() {
             </h1>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               {mode === "signin"
-                ? "Sign in to continue to your account."
+                ? "Sign in to continue to your dashboard."
                 : "Fill in the details below to get started."}
             </p>
           </div>
+
+          {/* Quick Demo Credentials Fill Button */}
+          {mode === "signin" && (
+            <div className="mb-5 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex items-center justify-between text-xs">
+              <span className="text-zinc-600 dark:text-zinc-300">
+                Demo: <strong className="text-blue-600 dark:text-blue-400">skm@gmail.cm</strong>
+              </span>
+              <button
+                type="button"
+                id="fill-demo-credentials-btn"
+                onClick={handleFillDemo}
+                className="px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition cursor-pointer"
+              >
+                Auto Fill
+              </button>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div
+              id="auth-error-alert"
+              className="mb-5 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm flex items-start gap-2.5 animate-fadeIn"
+            >
+              <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium text-xs sm:text-sm">{error}</p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
             {mode === "signup" && (
@@ -119,10 +186,14 @@ export default function AuthForm() {
               error={errors.password?.message}
               registration={register("password", {
                 required: "Password is required.",
-                minLength: {
-                  value: 8,
-                  message: "Password must be at least 8 characters.",
-                },
+                ...(mode === "signup"
+                  ? {
+                      minLength: {
+                        value: 6,
+                        message: "Password must be at least 6 characters.",
+                      },
+                    }
+                  : {}),
               })}
             />
 
@@ -158,7 +229,7 @@ export default function AuthForm() {
               id="auth-submit"
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold tracking-wide transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-blue-500/30"
+              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold tracking-wide transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-blue-500/30 cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -219,7 +290,15 @@ interface FieldProps {
   autoComplete?: string;
 }
 
-function Field({ id, label, type, placeholder, error, registration, autoComplete }: FieldProps) {
+function Field({
+  id,
+  label,
+  type,
+  placeholder,
+  error,
+  registration,
+  autoComplete,
+}: FieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <label
@@ -234,10 +313,11 @@ function Field({ id, label, type, placeholder, error, registration, autoComplete
         placeholder={placeholder}
         autoComplete={autoComplete}
         {...registration}
-        className={`w-full rounded-xl border px-4 py-2.5 text-sm bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition-all duration-150 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:border-blue-400 ${error
+        className={`w-full rounded-xl border px-4 py-2.5 text-sm bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition-all duration-150 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:border-blue-400 ${
+          error
             ? "border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-950/20"
             : "border-zinc-200 dark:border-zinc-700"
-          }`}
+        }`}
       />
       {error && (
         <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
@@ -260,8 +340,19 @@ function Field({ id, label, type, placeholder, error, registration, autoComplete
 function SpinnerIcon() {
   return (
     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+      />
     </svg>
   );
 }
